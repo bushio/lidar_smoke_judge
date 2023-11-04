@@ -29,12 +29,12 @@ def point_cloud2_to_array(msg):
     # Convert the PointCloud2 message to a NumPy array
     pc_data = np.frombuffer(msg.data, dtype=np.uint8).reshape(-1, msg.point_step)
     xyz = pc_data[:, 0:12].copy().view(dtype=np.float32).reshape(-1, 3)
-    xyz = np.nan_to_num(xyz)
+    #xyz = np.nan_to_num(xyz)
 
     distance = np.sqrt(xyz[:,0] ** 2 + xyz[:,1] ** 2 + xyz[:,2] ** 2)
 
     intensity = pc_data[:, intensity_offset:intensity_offset + 4].copy().view(dtype=np.float32)
-    intensity = np.nan_to_num(intensity)
+    #intensity = np.nan_to_num(intensity)
     
     t = pc_data[:, time_offset:time_offset + 4].copy().view(dtype=np.float32)
     

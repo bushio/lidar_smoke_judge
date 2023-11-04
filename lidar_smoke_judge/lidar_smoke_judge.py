@@ -34,12 +34,23 @@ class LidarSmokeJudge(Node):
             'SetPosY': 0.0, 
             'SetPosZ': 2.0,
             }
-    
+        
+        z_range=(-2,2)
+        self.frame_num = 0
+        self.xlim = (-20,20)
+        self.ylim = (-20,20)
+        self.zlim = z_range
+        
+        self.fig = plt.figure()
+
     def onLidarPointCloud2(self, msg: PointCloud2):
         #self.get_logger().info("get PointCloud2 {} {}".format(msg.header.stamp.sec, msg.header.stamp.nanosec))
         cells_lidar = point_cloud2_to_array(msg)
+        self.frame_num += 1
 
-        cells_lidar["Azim"] = np.rad2deg(np.arctan2(-cells_lidar["X"], cells_lidar["Y"]))
+        #cells_lidar["Azim"] = np.rad2deg(np.arctan2(-cells_lidar["X"], cells_lidar["Y"]))
+        cells_lidar["Azim"] = np.rad2deg(np.arctan2(cells_lidar["Y"], cells_lidar["X"]))
+
         is_insmoke, valid_idx, valid_ratio, zero_ratio = self.is_in_smoke(cells_lidar)
 
         self.get_logger().info("is_insmoke, valid_idx, valid_ratio, zero_ratio")
@@ -47,6 +58,8 @@ class LidarSmokeJudge(Node):
 
         smoke_idx = self.smoke_filter(cells_lidar)
         self.get_logger().info("smoke_idx: {}".format(smoke_idx))
+
+        self.scatter_graph_smoke(cells_lidar)
 
     def is_in_smoke(self, cells_lidar):
         # is_in_smoke
@@ -69,7 +82,10 @@ class LidarSmokeJudge(Node):
         # 割合
         valid_ratio = valid_num / front_points_num # 有効な点群の割合 0~1
         # zero_ratio = np.count_nonzero(filt_front & filt_d0) / np.count_nonzero(filt_front) # 前方の点のうちゼロ埋めされている点群の割合 0~1
-        zero_ratio = 1-len(cells_lidar['Dist'])/self.params_is_insmoke['max_points_num']
+        # print(~np.isnan(cells_lidar["X"]))
+        zero_ratio = np.count_nonzero(~np.isnan(cells_lidar["X"]))/self.params_is_insmoke['max_points_num']
+
+        #zero_ratio = 1-len(cells_lidar['Dist'])/self.params_is_insmoke['max_points_num']
         
         # 判定
         is_insmoke_valid = valid_ratio < self.params_is_insmoke['thresh_valid']
@@ -82,14 +98,54 @@ class LidarSmokeJudge(Node):
     def smoke_filter(self, cells_lidar):
         # smoke_filter
         # 霧の可能性がある点群を除去する関数
-
+        
         filt_dist = cells_lidar['Dist']  < self.params_smoke_filt['D']
         filt_I = cells_lidar['I'] < self.params_smoke_filt['I']
         filt_Z = cells_lidar['Z'] + self.params_smoke_filt['SetPosZ'] > self.params_smoke_filt['Z']
-        smoke_idx = filt_dist & filt_I & filt_Z
+
+        smoke_idx = filt_dist & filt_I[:, 0] & filt_Z
         return smoke_idx
+    
+    def scatter_graph_smoke(self,cells_lidar):
+        
+        is_insmoke, valid_idx, valid_ratio, zero_ratio = self.is_in_smoke(cells_lidar)
+        smoke_idx = self.smoke_filter(cells_lidar)
 
+        x = cells_lidar['X']
+        y = cells_lidar['Y']
+        
+        frame_num = self.frame_num
+        
+        # 散布図プロット
+        sc = plt.scatter(x, y, c='k', marker='.', label='LiDAR Points with Smoke Judge')
+        
+        plt.scatter(x[valid_idx], y[valid_idx], c='g',s=10)
+        print(smoke_idx)
 
+        plt.scatter(x[smoke_idx], y[smoke_idx], c='r',s=10)
+        
+        if is_insmoke:
+            plt.text(self.xlim[0]+1, self.ylim[1]-1, 'In Smoke', color='r')
+        
+        plt.xlabel('X')
+        plt.ylabel('Y')
+        
+        ttl_valid_ratio = f"valid-ratio = {valid_ratio*100:.2f}[%]"
+        ttl_zero_ratio  = f"zero-ratio = {zero_ratio*100:.2f}[%]"
+        ttl_frame       = f'Frame {frame_num}'
+        ttl = ttl_frame + "," + ttl_valid_ratio + "," + ttl_zero_ratio
+        plt.title(ttl)
+        
+        plt.grid()
+        plt.xlim(self.xlim)
+        plt.ylim(self.ylim)
+        
+        # 軸の比率を1:1に設定
+        plt.gca().set_aspect('equal', adjustable='box')
+
+        plt.pause(0.1)
+        plt.clf()
+        
 def main(args=None):
     print('Hi from lidar_smoke_judge')
     rclpy.init(args=None)
