@@ -11,6 +11,8 @@ import argparse
 import matplotlib.pyplot as plt
 from .point_cloud_util import point_cloud2_to_array
 
+VIS_SMOKE = False
+
 class LidarSmokeJudge(Node):
     def __init__(self):
         super().__init__('lidar_smoke_judge')
@@ -35,13 +37,14 @@ class LidarSmokeJudge(Node):
             'SetPosZ': 2.0,
             }
         
-        z_range=(-2,2)
-        self.frame_num = 0
-        self.xlim = (-20,20)
-        self.ylim = (-20,20)
-        self.zlim = z_range
-        
-        self.fig = plt.figure()
+        if VIS_SMOKE:
+            z_range=(-2,2)
+            self.frame_num = 0
+            self.xlim = (-20,20)
+            self.ylim = (-20,20)
+            self.zlim = z_range
+            
+            self.fig = plt.figure()
 
     def onLidarPointCloud2(self, msg: PointCloud2):
         #self.get_logger().info("get PointCloud2 {} {}".format(msg.header.stamp.sec, msg.header.stamp.nanosec))
@@ -59,7 +62,8 @@ class LidarSmokeJudge(Node):
         smoke_idx = self.smoke_filter(cells_lidar)
         self.get_logger().info("smoke_idx: {}".format(smoke_idx))
 
-        self.scatter_graph_smoke(cells_lidar)
+        if VIS_SMOKE:
+            self.scatter_graph_smoke(cells_lidar)
 
     def is_in_smoke(self, cells_lidar):
         # is_in_smoke
